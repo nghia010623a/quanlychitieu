@@ -22,7 +22,7 @@ class logo extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            image: DecorationImage(image: AssetImage('images/logoz.png')),
+            image: DecorationImage(image: AssetImage('assets/logo.png')),
           ),
         ),
         Positioned(top: 0, left: 12, child: Text("aaa")),
