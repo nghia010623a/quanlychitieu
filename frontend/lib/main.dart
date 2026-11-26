@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
 
-import 'login.dart';
+import 'features/auth/presentation/pages/login_page.dart';
 
 void main() {
   runApp(DevicePreview(enabled: true, builder: (context) => const MyApp()));
@@ -76,3 +76,5 @@ class Test extends StatelessWidget {
     return Container(width: 120, color: Color(0xFFA6CBF5));
   }
 }
+
+
