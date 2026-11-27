@@ -70,7 +70,16 @@ class AppButton extends StatelessWidget {
             leading!,
             const SizedBox(width: AppSpacing.xs),
           ],
-          Text(label, style: AppTypography.button.copyWith(color: _foreground)),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: AppTypography.button.copyWith(color: _foreground),
+              ),
+            ),
+          ),
         ],
       ),
     );
