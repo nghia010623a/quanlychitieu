@@ -26,7 +26,7 @@ class PeriodPickerResult {
   BudgetPeriodType type, {
   DateTime? reference,
 }) {
-  final ref = reference ?? DateTime(2026, 11, 15);
+  final ref = reference ?? DateTime.now();
   switch (type) {
     case BudgetPeriodType.week:
       final weekday = ref.weekday;

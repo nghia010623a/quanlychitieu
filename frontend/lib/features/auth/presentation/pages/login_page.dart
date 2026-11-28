@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/storage/auth_session.dart';
 import '../../../../core/theme/app_colors.dart';
 // Kiểm tra lại tên file AuthRepoImp.dart của bạn nếu IDE báo đỏ dòng import này nhé
 import '../../data/datasources/AuthAPI.dart';
@@ -55,6 +56,7 @@ class _loginWidgetState extends State<loginWidget> {
         nickname: identifier,
         password: password,
       );
+      AuthSession.instance.setFromUserJson(result);
 
       if (!mounted) return;
 

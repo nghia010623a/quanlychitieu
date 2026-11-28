@@ -93,12 +93,25 @@ class _BudgetListPageState extends State<BudgetListPage> {
   }
 
   Future<void> _reloadBudgets() async {
-    final budgets = await widget.repository.getBudgets(
-      periodFilterId: _selectedPeriodId,
-      walletId: _selectedWalletId,
-    );
-    if (!mounted) return;
-    setState(() => _budgets = budgets);
+    try {
+      final budgets = await widget.repository.getBudgets(
+        periodFilterId: _selectedPeriodId,
+        walletId: _selectedWalletId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = null;
+        _budgets = budgets;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   BudgetPeriodFilterOption? get _activePeriod {

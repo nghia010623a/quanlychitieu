@@ -16,6 +16,12 @@ enum BudgetPeriodType {
   final String sheetLabel;
 }
 
+/// Budget lifecycle status matching backend `BudgetStatus` (`ACTIVE`, `INACTIVE`).
+enum BudgetEntityStatus {
+  active,
+  inactive,
+}
+
 /// Visual status for a budget based on spent vs limit and alert threshold.
 enum BudgetHealthStatus {
   onTrack('Trong hạn mức'),
@@ -27,32 +33,36 @@ enum BudgetHealthStatus {
   final String label;
 }
 
-/// Category metadata used when creating or displaying budgets.
+/// Category metadata used when creating or displaying budgets (maps to `categories`).
 class BudgetCategory {
   const BudgetCategory({
     required this.id,
     required this.name,
     required this.icon,
     required this.tone,
+    this.isDefault = false,
   });
 
   final String id;
   final String name;
   final IconData icon;
   final AppCategoryTone tone;
+  final bool isDefault;
 }
 
-/// Wallet option available for applying a budget.
+/// Wallet option available for applying a budget (maps to `wallets`).
 class BudgetWalletOption {
   const BudgetWalletOption({
     required this.id,
     required this.name,
     required this.balance,
+    this.currency = 'VND',
   });
 
   final String id;
   final String name;
   final double balance;
+  final String currency;
 }
 
 /// Transaction item counted against a budget.
@@ -104,7 +114,7 @@ class BudgetMilestone {
   bool get isAchieved => achievedDate != null;
 }
 
-/// Core domain entity for a user budget.
+/// Core domain entity for a user budget (maps to `budgets` table).
 class BudgetEntity {
   const BudgetEntity({
     required this.id,
@@ -117,6 +127,8 @@ class BudgetEntity {
     required this.walletIds,
     required this.alertPercent,
     required this.repeatMonthly,
+    this.budgetName,
+    this.status = BudgetEntityStatus.active,
     this.transactions = const [],
     this.referenceDate,
   });
@@ -131,8 +143,15 @@ class BudgetEntity {
   final List<String> walletIds;
   final int alertPercent;
   final bool repeatMonthly;
+  final String? budgetName;
+  final BudgetEntityStatus status;
   final List<BudgetTransactionItem> transactions;
   final DateTime? referenceDate;
+
+  String get displayName =>
+      (budgetName != null && budgetName!.trim().isNotEmpty)
+          ? budgetName!
+          : category.name;
 
   DateTime get _today => referenceDate ?? DateTime(2026, 11, 15);
 
@@ -278,6 +297,8 @@ class BudgetEntity {
     List<String>? walletIds,
     int? alertPercent,
     bool? repeatMonthly,
+    String? budgetName,
+    BudgetEntityStatus? status,
     List<BudgetTransactionItem>? transactions,
     DateTime? referenceDate,
   }) {
@@ -292,6 +313,8 @@ class BudgetEntity {
       walletIds: walletIds ?? this.walletIds,
       alertPercent: alertPercent ?? this.alertPercent,
       repeatMonthly: repeatMonthly ?? this.repeatMonthly,
+      budgetName: budgetName ?? this.budgetName,
+      status: status ?? this.status,
       transactions: transactions ?? this.transactions,
       referenceDate: referenceDate ?? this.referenceDate,
     );

@@ -34,6 +34,7 @@ class BudgetDetailPage extends StatefulWidget {
 
 class _BudgetDetailPageState extends State<BudgetDetailPage> {
   bool _isLoading = true;
+  String? _errorMessage;
   BudgetEntity? _budget;
   List<BudgetWalletOption> _wallets = const [];
 
@@ -44,18 +45,29 @@ class _BudgetDetailPageState extends State<BudgetDetailPage> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    final results = await Future.wait([
-      widget.repository.getBudgetById(widget.budgetId),
-      widget.repository.getWallets(),
-    ]);
-
-    if (!mounted) return;
     setState(() {
-      _budget = results[0] as BudgetEntity?;
-      _wallets = results[1] as List<BudgetWalletOption>;
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
     });
+    try {
+      final results = await Future.wait([
+        widget.repository.getBudgetById(widget.budgetId),
+        widget.repository.getWallets(),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _budget = results[0] as BudgetEntity?;
+        _wallets = results[1] as List<BudgetWalletOption>;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   String _walletNamesLabel(BudgetEntity budget) {
@@ -102,11 +114,21 @@ class _BudgetDetailPageState extends State<BudgetDetailPage> {
     );
     if (picked == null || !mounted) return;
 
-    final updated = await widget.repository.updateBudget(
-      budget.copyWith(walletIds: picked),
-    );
-    if (!mounted) return;
-    setState(() => _budget = updated);
+    try {
+      final updated = await widget.repository.updateBudget(
+        budget.copyWith(walletIds: picked),
+      );
+      if (!mounted) return;
+      setState(() => _budget = updated);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   void _openProgress() {
@@ -157,6 +179,7 @@ class _BudgetDetailPageState extends State<BudgetDetailPage> {
                       itemBuilder: (_, index) {
                         return _TransactionRow(
                           item: budget.transactions[index],
+                          referenceDate: budget.referenceDate,
                         );
                       },
                     ),
@@ -209,13 +232,19 @@ class _BudgetDetailPageState extends State<BudgetDetailPage> {
             Expanded(
               child: _isLoading
                   ? const AppStateView.loading()
-                  : budget == null
+                  : _errorMessage != null
                       ? AppStateView.error(
-                          title: 'Không tìm thấy ngân sách',
-                          actionLabel: 'Quay lại',
-                          onAction: () => Navigator.of(context).pop(),
+                          title: 'Không tải được chi tiết ngân sách',
+                          subtitle: _errorMessage,
+                          onAction: _loadData,
                         )
-                      : _buildContent(budget),
+                      : budget == null
+                          ? AppStateView.error(
+                              title: 'Không tìm thấy ngân sách',
+                              actionLabel: 'Quay lại',
+                              onAction: () => Navigator.of(context).pop(),
+                            )
+                          : _buildContent(budget),
             ),
           ],
         ),
@@ -451,7 +480,10 @@ class _BudgetDetailPageState extends State<BudgetDetailPage> {
                 )
               else
                 for (var i = 0; i < recent.length; i++) ...[
-                  _TransactionRow(item: recent[i]),
+                  _TransactionRow(
+                    item: recent[i],
+                    referenceDate: budget.referenceDate,
+                  ),
                   if (i < recent.length - 1) const SizedBox(height: AppSpacing.md),
                 ],
             ],
@@ -550,15 +582,19 @@ class _SettingRow extends StatelessWidget {
 }
 
 class _TransactionRow extends StatelessWidget {
-  const _TransactionRow({required this.item});
+  const _TransactionRow({
+    required this.item,
+    this.referenceDate,
+  });
 
   final BudgetTransactionItem item;
+  final DateTime? referenceDate;
 
   @override
   Widget build(BuildContext context) {
     final dayLabel = AppDateTime.formatRelativeDay(
       item.date,
-      reference: DateTime(2026, 11, 15),
+      reference: referenceDate,
     );
 
     return Row(

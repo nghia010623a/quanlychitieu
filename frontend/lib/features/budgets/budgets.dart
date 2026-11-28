@@ -1,4 +1,5 @@
 export 'data/datasources/budget_remote_data_source.dart';
+export 'data/datasources/http_budget_remote_data_source.dart';
 export 'data/models/budget_model.dart';
 export 'data/repositories/budget_repository_impl.dart';
 export 'domain/entities/budget.dart';

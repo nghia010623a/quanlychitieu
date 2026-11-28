@@ -1,8 +1,9 @@
 
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:http/http.dart' as http;
+
+import '../../../../core/config/app_config.dart';
 
 class AuthAPI {
   final http.Client client;
@@ -11,7 +12,11 @@ class AuthAPI {
       : client = client ?? http.Client();
 
   String get _baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
+    final apiBase = AppConfig.apiBaseUrl;
+    if (apiBase.isNotEmpty) {
+      return '$apiBase/auth';
+    }
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:8080/api/auth';
     }
     return 'http://localhost:8080/api/auth';

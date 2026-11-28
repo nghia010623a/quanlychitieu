@@ -26,7 +26,7 @@ class _KeepooAppState extends State<KeepooApp> {
   @override
   void initState() {
     super.initState();
-    _dependencies = widget.dependencies ?? AppDependencies.mock();
+    _dependencies = widget.dependencies ?? AppDependencies.remote();
   }
 
   @override

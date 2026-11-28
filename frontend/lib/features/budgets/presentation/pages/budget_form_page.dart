@@ -54,6 +54,7 @@ class _BudgetFormPageState extends State<BudgetFormPage> {
   final TextEditingController _amountController = TextEditingController();
   bool _isLoading = true;
   bool _isSaving = false;
+  String? _errorMessage;
 
   List<BudgetCategory> _categories = const [];
   List<BudgetWalletOption> _wallets = const [];
@@ -85,54 +86,81 @@ class _BudgetFormPageState extends State<BudgetFormPage> {
   }
 
   Future<void> _initForm() async {
-    final results = await Future.wait([
-      widget.repository.getCategories(),
-      widget.repository.getWallets(),
-    ]);
-
-    final categories = results[0] as List<BudgetCategory>;
-    final wallets = results[1] as List<BudgetWalletOption>;
-    final existing = widget.existingBudget;
-
-    if (existing != null) {
-      _selectedCategory = categories.firstWhere(
-        (c) => c.id == existing.category.id,
-        orElse: () => existing.category,
-      );
-      _periodType = existing.periodType;
-      _startDate = existing.startDate;
-      _endDate = existing.endDate;
-      _selectedWalletIds = List<String>.from(existing.walletIds);
-      _alertPercent = existing.alertPercent;
-      _repeatMonthly = existing.repeatMonthly;
-      _amountController.text =
-          CurrencyFormatter.formatVnd(existing.limitAmount, withSymbol: false);
-    } else {
-      _selectedCategory = widget.initialCategory ?? categories.first;
-      _periodType = BudgetPeriodType.month;
-      final defaultRange = defaultDatesForPeriod(
-        BudgetPeriodType.month,
-        reference: widget.initialStartDate,
-      );
-      _startDate = widget.initialStartDate ?? defaultRange.$1;
-      _endDate = widget.initialEndDate ?? defaultRange.$2;
-      _selectedWalletIds = wallets.map((w) => w.id).toList();
-      _alertPercent = 80;
-      _repeatMonthly = true;
-    }
-
-    if (!mounted) return;
     setState(() {
-      _categories = categories;
-      _wallets = wallets;
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
     });
+    try {
+      final results = await Future.wait([
+        widget.repository.getCategories(),
+        widget.repository.getWallets(),
+      ]);
+
+      final categories = results[0] as List<BudgetCategory>;
+      final wallets = results[1] as List<BudgetWalletOption>;
+      final existing = widget.existingBudget;
+
+      if (existing == null && categories.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _categories = categories;
+          _wallets = wallets;
+          _errorMessage = 'Chưa có danh mục chi tiêu nào để tạo ngân sách.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      if (existing != null) {
+        _selectedCategory = categories.firstWhere(
+          (c) => c.id == existing.category.id,
+          orElse: () => existing.category,
+        );
+        _periodType = existing.periodType;
+        _startDate = existing.startDate;
+        _endDate = existing.endDate;
+        _selectedWalletIds = List<String>.from(existing.walletIds);
+        _alertPercent = existing.alertPercent;
+        _repeatMonthly = existing.repeatMonthly;
+        _amountController.text =
+            CurrencyFormatter.formatVnd(existing.limitAmount, withSymbol: false);
+      } else {
+        _selectedCategory = widget.initialCategory ?? categories.first;
+        _periodType = BudgetPeriodType.month;
+        final defaultRange = defaultDatesForPeriod(
+          BudgetPeriodType.month,
+          reference: widget.initialStartDate,
+        );
+        _startDate = widget.initialStartDate ?? defaultRange.$1;
+        _endDate = widget.initialEndDate ?? defaultRange.$2;
+        _selectedWalletIds = wallets.map((w) => w.id).toList();
+        _alertPercent = 80;
+        _repeatMonthly = true;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _categories = categories;
+        _wallets = wallets;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   double? get _parsedAmount =>
       CurrencyFormatter.tryParseVnd(_amountController.text);
 
-  bool get _canSubmit => (_parsedAmount ?? 0) > 0 && !_isSaving;
+  bool get _canSubmit =>
+      (_parsedAmount ?? 0) > 0 &&
+      _selectedWalletIds.isNotEmpty &&
+      _errorMessage == null &&
+      !_isSaving;
 
   String get _walletSummaryTitle {
     if (_wallets.isNotEmpty && _selectedWalletIds.length >= _wallets.length) {
@@ -188,14 +216,16 @@ class _BudgetFormPageState extends State<BudgetFormPage> {
 
   Future<void> _submit() async {
     final amount = _parsedAmount;
-    if (amount == null || amount <= 0) return;
+    if (amount == null || amount <= 0 || _selectedWalletIds.isEmpty) return;
 
     setState(() => _isSaving = true);
     try {
       if (widget.isEditing) {
+        final existing = widget.existingBudget!;
         final updated = await widget.repository.updateBudget(
-          widget.existingBudget!.copyWith(
+          existing.copyWith(
             category: _selectedCategory,
+            budgetName: _selectedCategory.name,
             limitAmount: amount,
             periodType: _periodType,
             startDate: _startDate,
@@ -223,6 +253,14 @@ class _BudgetFormPageState extends State<BudgetFormPage> {
         if (!mounted) return;
         Navigator.of(context).pop(created);
       }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -240,9 +278,24 @@ class _BudgetFormPageState extends State<BudgetFormPage> {
     );
     if (!confirmed || !mounted) return;
 
-    await widget.repository.deleteBudget(existing.id);
-    if (!mounted) return;
-    Navigator.of(context).pop(const BudgetFormResult(deleted: true));
+    setState(() => _isSaving = true);
+    try {
+      await widget.repository.deleteBudget(existing.id);
+      if (!mounted) return;
+      Navigator.of(context).pop(const BudgetFormResult(deleted: true));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -264,12 +317,18 @@ class _BudgetFormPageState extends State<BudgetFormPage> {
             Expanded(
               child: _isLoading
                   ? const AppStateView.loading()
-                  : _buildFormBody(),
+                  : _errorMessage != null
+                      ? AppStateView.error(
+                          title: 'Không tải được dữ liệu tạo ngân sách',
+                          subtitle: _errorMessage,
+                          onAction: _initForm,
+                        )
+                      : _buildFormBody(),
             ),
           ],
         ),
       ),
-      bottomBar: _isLoading
+      bottomBar: _isLoading || _errorMessage != null
           ? null
           : Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -520,16 +579,20 @@ class _SelectablePill extends StatelessWidget {
             boxShadow: AppShadows.control,
           ),
           alignment: horizontalPadding > 0 ? null : Alignment.center,
-          child: Text(
-            label,
-            style: (selected
-                    ? AppTypography.button
-                    : AppTypography.bodySemiBold)
-                .copyWith(
-              fontSize: height < 44 ? 13 : 14,
-              color: selected || height >= 44
-                  ? AppColors.navy
-                  : AppColors.slate,
+          child: Center(
+            widthFactor: horizontalPadding > 0 ? 1 : null,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: (selected
+                      ? AppTypography.button
+                      : AppTypography.bodySemiBold)
+                  .copyWith(
+                fontSize: height < 44 ? 13 : 14,
+                color: selected || height >= 44
+                    ? AppColors.navy
+                    : AppColors.slate,
+              ),
             ),
           ),
         ),
